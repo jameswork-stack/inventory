@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "../styles/login.css";
 import { login } from "../auth";
+import logo from "/images/logo.png";
+
 
 const Login = () => {
   const [username, setUsername] = useState("");
@@ -24,7 +26,7 @@ const Login = () => {
   return (
     <div className="login-container">
       <form className="login-form" onSubmit={handleSubmit}>
-        <h2>Login</h2>
+        <img src={logo} alt="logo" />
         {error && <div className="error">{error}</div>}
         <label>Username</label>
         <input

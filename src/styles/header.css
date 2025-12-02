@@ -1,6 +1,6 @@
 .header {
   height: 80px;
-  background: linear-gradient(135deg, #75230f 0%, #764ba2 100%);
+  background: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -16,7 +16,7 @@
   margin: 0;
   font-size: 24px;
   font-weight: 600;
-  color: white;
+  color: black;
   letter-spacing: -0.5px;
 }
 
@@ -30,15 +30,15 @@
 .header span {
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(0, 0, 0, 0.9);
 }
 
 .header button {
   padding: 8px 16px;
   background-color: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgb(0, 0, 0);
   border-radius: 6px;
-  color: white;
+  color: rgb(0, 0, 0);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -47,7 +47,7 @@
 
 .header button:hover {
   background-color: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(31, 30, 30, 0.664);
   transform: translateY(-1px);
 }
 
