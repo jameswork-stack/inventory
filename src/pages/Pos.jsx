@@ -108,10 +108,23 @@ const POS = () => {
       };
     }
 
-    setCart([...cart, newItem]);
+    // ensure item has selection flag for removal
+    setCart([...cart, { ...newItem, selected: false }]);
     setSelectedProduct(null);
     setPurchaseAmount("");
     setUnitType("L");
+  };
+
+  // Toggle selection of a cart item by index
+  const toggleSelect = (index) => {
+    setCart((prev) =>
+      prev.map((it, i) => (i === index ? { ...it, selected: !it.selected } : it))
+    );
+  };
+
+  // Remove all selected items from cart
+  const removeSelected = () => {
+    setCart((prev) => prev.filter((it) => !it.selected));
   };
 
   // FINALIZE PURCHASE
@@ -165,12 +178,16 @@ const POS = () => {
 
   // Grouping
   const groupedPaints = paintProducts.reduce((acc, p) => {
+    const liters = convertToLiters(p.literValue, p.literUnit);
+    if (isNaN(liters) || liters <= 0) return acc;
     if (!acc[p.brand]) acc[p.brand] = [];
     acc[p.brand].push(p);
     return acc;
   }, {});
 
   const groupedTools = toolProducts.reduce((acc, p) => {
+    const qty = Number(p.quantity) || 0;
+    if (qty <= 0) return acc;
     if (!acc[p.category]) acc[p.category] = [];
     acc[p.category].push(p);
     return acc;
@@ -350,6 +367,7 @@ const POS = () => {
           <table className="cart-table">
             <thead>
               <tr>
+                <th>Select</th>
                 <th>Item</th>
                 <th>Amount</th>
                 <th>Price</th>
@@ -359,6 +377,13 @@ const POS = () => {
             <tbody>
               {cart.map((c, i) => (
                 <tr key={i}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={!!c.selected}
+                      onChange={() => toggleSelect(i)}
+                    />
+                  </td>
                   <td>{c.item}</td>
                   <td>{c.displayAmount}</td>
                   <td>₱{c.pricePerUnit}</td>
@@ -418,6 +443,9 @@ const POS = () => {
 
           {/* Complete Purchase Button */}
           <div className="action-buttons-section">
+            <button onClick={removeSelected} className="btn-remove-selected">
+              Remove Selected
+            </button>
             <button onClick={finalizePurchase} className="btn-complete">
               Complete Purchase
             </button>

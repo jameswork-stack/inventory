@@ -399,6 +399,21 @@
 
 .btn-complete:active {
   transform: translateY(0);
+}.btn-remove-selected {
+  padding: 12px 32px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-remove-selected:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(72, 187, 120, 0.3);
 }
 
 /* Empty State */

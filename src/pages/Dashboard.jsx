@@ -33,6 +33,9 @@ const Dashboard = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const [chartType, setChartType] = useState("sales"); // ⭐ NEW
+
+
   // ---------------------------
   // FETCH PAINT PRODUCTS
   // ---------------------------
@@ -62,7 +65,6 @@ const Dashboard = () => {
         const cost = parseFloat(p.cost) || 0;
         const profit = parseFloat(p.totalProfit) || 0;
 
-        // Convert liters
         const liters =
           p.literUnit === "mL"
             ? parseFloat(p.literValue) / 1000
@@ -140,7 +142,7 @@ const Dashboard = () => {
   }, []);
 
   // ---------------------------
-  // SALES RECORDS / DATE FILTERING
+  // SALES & PROFIT CHART DATA
   // ---------------------------
   useEffect(() => {
     const salesRef = ref(db, "sales");
@@ -165,24 +167,34 @@ const Dashboard = () => {
       }
 
       const grouped = {};
+
       filteredSales.forEach((s) => {
         const date = new Date(s.date).toLocaleDateString();
 
-        if (!grouped[date]) grouped[date] = 0;
+        if (!grouped[date]) {
+          grouped[date] = { totalAmount: 0, totalProfit: 0 };
+        }
 
-        grouped[date] += Number(s.totalAmount);
+        grouped[date].totalAmount += Number(s.totalAmount);
+        grouped[date].totalProfit += Number(s.totalProfit);
       });
 
-      const formatted = Object.entries(grouped).map(([date, totalAmount]) => ({
-        date,
-        totalAmount,
-      }));
+      const formatted = Object.entries(grouped).map(
+        ([date, values]) => ({
+          date,
+          totalAmount: values.totalAmount,
+          totalProfit: values.totalProfit,
+        })
+      );
 
       setSalesData(formatted);
     });
   }, [startDate, endDate]);
 
+
   const totalSales = salesData.reduce((sum, d) => sum + d.totalAmount, 0);
+  const totalProfit = salesData.reduce((sum, d) => sum + d.totalProfit, 0);
+
 
   return (
     <div className="dashboard-container">
@@ -217,13 +229,37 @@ const Dashboard = () => {
 
       {/* Total Sales Card */}
       <div className="total-sales-card">
-        <h3>Total Sales in Selected Range</h3>
-        <p className="amount">₱{totalSales.toFixed(2)}</p>
+        <h3>
+          {chartType === "sales"
+            ? "Total Sales in Selected Range"
+            : "Total Profit in Selected Range"}
+        </h3>
+
+        <p className="amount">
+          ₱
+          {chartType === "sales"
+            ? totalSales.toFixed(2)
+            : totalProfit.toFixed(2)}
+        </p>
       </div>
 
-      {/* Sales Chart */}
+      {/* ⭐ Chart Type Switch */}
+      <div style={{ marginBottom: "10px", textAlign: "right" }}>
+        <select
+          value={chartType}
+          onChange={(e) => setChartType(e.target.value)}
+          style={{ padding: "8px", borderRadius: "6px" }}
+        >
+          <option value="sales">Daily Sales</option>
+          <option value="profit">Daily Profit</option>
+        </select>
+      </div>
+
+      {/* Sales / Profit Chart */}
       <div className="chart-section">
-        <h3>Daily Sales Chart</h3>
+        <h3>
+          {chartType === "sales" ? "Daily Sales Chart" : "Daily Profit Chart"}
+        </h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={salesData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -237,9 +273,10 @@ const Dashboard = () => {
                 boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
               }}
             />
+
             <Line
               type="monotone"
-              dataKey="totalAmount"
+              dataKey={chartType === "sales" ? "totalAmount" : "totalProfit"}
               stroke="#667eea"
               strokeWidth={3}
               dot={{ fill: "#667eea", r: 4 }}
@@ -255,10 +292,12 @@ const Dashboard = () => {
         <div className="stat-card">
           <h3>🎨 Paint Products</h3>
           <p>
-            <strong>Total Types:</strong> <span className="stat-value">{paintCount}</span>
+            <strong>Total Types:</strong>{" "}
+            <span className="stat-value">{paintCount}</span>
           </p>
           <p>
-            <strong>Total Stock:</strong> <span className="stat-value">{totalLiters.toFixed(2)} L</span>
+            <strong>Total Stock:</strong>{" "}
+            <span className="stat-value">{totalLiters.toFixed(2)} L</span>
           </p>
           {lowPaintStock.length > 0 && (
             <div className="low-stock-section">
@@ -276,10 +315,12 @@ const Dashboard = () => {
         <div className="stat-card">
           <h3>🛠 Tool Products</h3>
           <p>
-            <strong>Total Items:</strong> <span className="stat-value">{toolCount}</span>
+            <strong>Total Items:</strong>{" "}
+            <span className="stat-value">{toolCount}</span>
           </p>
           <p>
-            <strong>Total Quantity:</strong> <span className="stat-value">{totalToolQty}</span>
+            <strong>Total Quantity:</strong>{" "}
+            <span className="stat-value">{totalToolQty}</span>
           </p>
           {lowToolStock.length > 0 && (
             <div className="low-stock-section">
@@ -296,7 +337,6 @@ const Dashboard = () => {
 
       {/* Cost & Profit Summary */}
       <div className="cost-profit-grid">
-        {/* Paint Cost & Profit */}
         <div className="cost-profit-card">
           <h3>🎨 Paint Cost & Profit</h3>
           <div className="cost-profit-item">
@@ -309,7 +349,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Tool Cost & Profit */}
         <div className="cost-profit-card">
           <h3>🛠 Tool Cost & Profit</h3>
           <div className="cost-profit-item">
