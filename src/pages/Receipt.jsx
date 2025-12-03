@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
 import { ref, onValue, remove } from "firebase/database";
+import { getUser } from "../auth";
 import "../styles/receipt.css";
 
 const Receipt = () => {
+  const currentUser = getUser();
+  const isStaff = currentUser && currentUser.username === "staff@inventory.com";
   const [sales, setSales] = useState([]);
 
   useEffect(() => {
@@ -89,35 +92,6 @@ const Receipt = () => {
         <>
           {/* Summary Stats */}
           <div className="receipt-stats">
-            <div className="stat-card total">
-              <h4>Total Revenue</h4>
-              <p className="value">
-                ₱
-                {sales
-                  .reduce((sum, s) => sum + (s.totalAmount || 0), 0)
-                  .toFixed(2)}
-              </p>
-            </div>
-
-            <div className="stat-card discount">
-              <h4>Total Discounts</h4>
-              <p className="value">
-                ₱
-                {sales
-                  .reduce((sum, s) => sum + (s.discount || 0), 0)
-                  .toFixed(2)}
-              </p>
-            </div>
-
-            <div className="stat-card profit">
-              <h4>Total Profit</h4>
-              <p className="value">
-                ₱
-                {sales
-                  .reduce((sum, s) => sum + (s.totalProfit || 0), 0)
-                  .toFixed(2)}
-              </p>
-            </div>
 
             <div className="stat-card">
               <h4>Total Transactions</h4>
@@ -192,12 +166,14 @@ const Receipt = () => {
                         Generate PDF
                       </button>
 
-                      <button
-                        onClick={() => deleteSale(sale.id)}
-                        className="btn-delete"
-                      >
-                        Delete
-                      </button>
+                      {!isStaff && (
+                        <button
+                          onClick={() => deleteSale(sale.id)}
+                          className="btn-delete"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

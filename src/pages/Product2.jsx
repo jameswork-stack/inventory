@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
-import { ref, push, onValue, update, remove } from "firebase/database";
+import { ref, onValue, update, remove } from "firebase/database";
+import { getUser } from "../auth";
 import "../styles/product2.css";
 
 const Product2 = () => {
@@ -17,6 +18,8 @@ const Product2 = () => {
 
   // Editing state
   const [editingId, setEditingId] = useState(null);
+  const currentUser = getUser();
+  const isStaff = currentUser && currentUser.username === "staff@inventory.com";
   const [editData, setEditData] = useState({});
 
   // Handle form input
@@ -380,12 +383,14 @@ const Product2 = () => {
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => deleteProduct(p.id)}
-                            className="btn-delete"
-                          >
-                            Delete
-                          </button>
+                          {!isStaff && (
+                            <button
+                              onClick={() => deleteProduct(p.id)}
+                              className="btn-delete"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

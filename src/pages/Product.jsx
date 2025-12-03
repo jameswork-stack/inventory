@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
-import { ref, push, onValue, update } from "firebase/database";
-import { remove } from "firebase/database";
+import { ref, onValue, update, remove } from "firebase/database";
+import { getUser } from "../auth";
 import "../styles/product.css";
 
 
@@ -21,6 +21,8 @@ const Product = () => {
 
   // Editing state (per-row)
   const [editingId, setEditingId] = useState(null);
+  const currentUser = getUser();
+  const isStaff = currentUser && currentUser.username === "staff@inventory.com";
   const [editData, setEditData] = useState({});
 
   // Fetch products from Firebase
@@ -472,12 +474,14 @@ const Product = () => {
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => deleteProduct(p.id)}
-                            className="btn-delete"
-                          >
-                            Delete
-                          </button>
+                          {!isStaff && (
+                            <button
+                              onClick={() => deleteProduct(p.id)}
+                              className="btn-delete"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -1,6 +1,6 @@
 const accounts = [
-  { username: "boypaint@inventory.com", password: "Boypaint8526", name: "Admin" },
-  { username: "user", password: "user123", name: "User" },
+  { username: "admin@inventory.com", password: "Boypaint8526", name: "Admin" },
+  { username: "staff@inventory.com", password: "paintstaff90", name: "User" },
 ];
 
 export function login(username, password) {
@@ -8,10 +8,10 @@ export function login(username, password) {
     (a) => a.username === username && a.password === password
   );
   if (user) {
-    sessionStorage.setItem(
-      "authUser",
-      JSON.stringify({ username: user.username, name: user.name })
-    );
+    const userData = { username: user.username, name: user.name };
+    sessionStorage.setItem("authUser", JSON.stringify(userData));
+    // Trigger storage event to notify other tabs/windows
+    window.dispatchEvent(new Event("storage"));
     return true;
   }
   return false;
@@ -19,6 +19,8 @@ export function login(username, password) {
 
 export function logout() {
   sessionStorage.removeItem("authUser");
+  // Trigger storage event to notify other tabs/windows
+  window.dispatchEvent(new Event("storage"));
 }
 
 export function isAuthenticated() {
