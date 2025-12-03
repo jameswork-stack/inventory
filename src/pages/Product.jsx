@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
-import { ref, onValue, update, remove } from "firebase/database";
+import { ref, onValue, update, remove, push } from "firebase/database";
 import { getUser } from "../auth";
 import "../styles/product.css";
 
@@ -468,12 +468,14 @@ const Product = () => {
 
                       <td>
                         <div className="action-buttons">
-                          <button
-                            onClick={() => startEdit(p)}
-                            className="btn-edit"
-                          >
-                            Edit
-                          </button>
+                          {!isStaff && (
+                            <button
+                              onClick={() => startEdit(p)}
+                              className="btn-edit"
+                            >
+                              Edit
+                            </button>
+                          )}
                           {!isStaff && (
                             <button
                               onClick={() => deleteProduct(p.id)}
