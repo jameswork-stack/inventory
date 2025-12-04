@@ -73,7 +73,7 @@ const Dashboard = () => {
         if (!isNaN(liters)) {
           litersTotal += liters;
 
-          if (liters < 1) {
+          if (liters < 17) {  // Changed from 1 to 17 liters for low stock threshold
             lowStockList.push({
               item: p.item,
               liters: liters.toFixed(2),
@@ -126,7 +126,7 @@ const Dashboard = () => {
         toolCost += cost;
         toolProfit += profit;
 
-        if (quantity < 5) {
+        if (quantity < 11) {  // Changed from 5 to 11 units for low stock threshold
           lowTools.push({
             item: t.item,
             quantity,
