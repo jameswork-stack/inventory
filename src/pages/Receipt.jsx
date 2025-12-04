@@ -15,6 +15,7 @@ const Receipt = () => {
       const data = snapshot.val();
       const loadedSales = data
         ? Object.keys(data).map((key) => ({ id: key, ...data[key] }))
+            .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date in descending order (newest first)
         : [];
       setSales(loadedSales);
     });
