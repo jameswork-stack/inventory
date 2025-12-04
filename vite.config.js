@@ -9,12 +9,12 @@ export default defineConfig({
     historyApiFallback: true,
   },
   build: {
+    outDir: 'dist',
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        // Add other entry points if needed
       },
     },
   },
-  base: '/',
+  base: './', // Use relative paths for Vercel
 })
