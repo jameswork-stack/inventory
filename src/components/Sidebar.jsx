@@ -47,6 +47,13 @@ const Sidebar = () => {
           <span className="nav-label">Paint</span>
         </NavLink>
 
+            <NavLink 
+              to="/expense" 
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <span className="nav-icon">💸</span>
+              <span className="nav-label">Expense</span>
+            </NavLink>
         <NavLink 
           to="/product2" 
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}

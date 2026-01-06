@@ -12,6 +12,7 @@ const POS = () => {
   const [cart, setCart] = useState([]);
   const [customerName, setCustomerName] = useState("");
   const [discount, setDiscount] = useState(0); // NEW
+  const [search, setSearch] = useState("");
 
   // Fetch Paint
   useEffect(() => {
@@ -177,7 +178,25 @@ const POS = () => {
   };
 
   // Grouping
-  const groupedPaints = paintProducts.reduce((acc, p) => {
+  const filteredPaintProducts = paintProducts.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (p.item && p.item.toLowerCase().includes(q)) ||
+      (p.brand && p.brand.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredToolProducts = toolProducts.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (p.item && p.item.toLowerCase().includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q))
+    );
+  });
+
+  const groupedPaints = filteredPaintProducts.reduce((acc, p) => {
     const liters = convertToLiters(p.literValue, p.literUnit);
     if (isNaN(liters) || liters <= 0) return acc;
     if (!acc[p.brand]) acc[p.brand] = [];
@@ -192,6 +211,7 @@ const POS = () => {
     acc[p.category].push(p);
     return acc;
   }, {});
+  
 
   return (
     <div className="pos-container">
@@ -201,91 +221,17 @@ const POS = () => {
         <p>Manage sales transactions and inventory checkout</p>
       </div>
 
-      {/* Paint Products */}
-      <h3 className="section-header">🎨 Paint Products</h3>
-      {Object.keys(groupedPaints).length > 0 ? (
-        Object.keys(groupedPaints).map((brand) => (
-          <div key={brand}>
-            <h4 className="category-title">{brand}</h4>
-            <table className="products-list-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Available Liters</th>
-                  <th>Price per Liter</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedPaints[brand].map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.item}</td>
-                    <td>
-                      {convertToLiters(p.literValue, p.literUnit).toFixed(2)} L
-                    </td>
-                    <td>₱{p.price}</td>
-                    <td>
-                      <button
-                        onClick={() => setSelectedProduct(p)}
-                        className="btn-select"
-                      >
-                        Select
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))
-      ) : (
-        <div className="empty-state">
-          <p>No paint products available.</p>
-        </div>
-      )}
+      {/* Search */}
+      <div className="pos-search">
+        <input
+          type="text"
+          placeholder="Search paint or tool products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-      {/* Tool Products */}
-      <h3 className="section-header">🛠 Tool Products</h3>
-      {Object.keys(groupedTools).length > 0 ? (
-        Object.keys(groupedTools).map((cat) => (
-          <div key={cat}>
-            <h4 className="category-title">{cat}</h4>
-            <table className="products-list-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedTools[cat].map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.item}</td>
-                    <td>{p.quantity}</td>
-                    <td>₱{p.price}</td>
-                    <td>
-                      <button
-                        onClick={() => setSelectedProduct(p)}
-                        className="btn-select"
-                      >
-                        Select
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))
-      ) : (
-        <div className="empty-state">
-          <p>No tool products available.</p>
-        </div>
-      )}
-
-      {/* Selected Product Section */}
+      {/* Selected Product Section (moved to top) */}
       {selectedProduct && (
         <div className="selected-product-section">
           <h3>Selected Product</h3>
@@ -349,7 +295,7 @@ const POS = () => {
         </div>
       )}
 
-      {/* Cart Section */}
+      {/* Cart Section (moved to top) */}
       {cart.length > 0 && (
         <div className="cart-section">
           <h3>🛒 Shopping Cart</h3>
@@ -452,6 +398,94 @@ const POS = () => {
           </div>
         </div>
       )}
+
+      {/* Paint Products */}
+      <h3 className="section-header">🎨 Paint Products</h3>
+      {Object.keys(groupedPaints).length > 0 ? (
+        Object.keys(groupedPaints).map((brand) => (
+          <div key={brand}>
+            <h4 className="category-title">{brand}</h4>
+            <table className="products-list-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Available Liters</th>
+                  <th>Price per Liter</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedPaints[brand].map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.item}</td>
+                    <td>
+                      {convertToLiters(p.literValue, p.literUnit).toFixed(2)} L
+                    </td>
+                    <td>₱{p.price}</td>
+                    <td>
+                      <button
+                        onClick={() => setSelectedProduct(p)}
+                        className="btn-select"
+                      >
+                        Select
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      ) : (
+        <div className="empty-state">
+          <p>No paint products available.</p>
+        </div>
+      )}
+
+      {/* Tool Products */}
+      <h3 className="section-header">🛠 Tool Products</h3>
+      {Object.keys(groupedTools).length > 0 ? (
+        Object.keys(groupedTools).map((cat) => (
+          <div key={cat}>
+            <h4 className="category-title">{cat}</h4>
+            <table className="products-list-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedTools[cat].map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.item}</td>
+                    <td>{p.quantity}</td>
+                    <td>₱{p.price}</td>
+                    <td>
+                      <button
+                        onClick={() => setSelectedProduct(p)}
+                        className="btn-select"
+                      >
+                        Select
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      ) : (
+        <div className="empty-state">
+          <p>No tool products available.</p>
+        </div>
+      )}
+
+      
+
+      
     </div>
   );
 };

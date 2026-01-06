@@ -25,6 +25,26 @@
   margin: 0;
 }
 
+/* Search */
+.pos-search {
+  margin: 12px 0 18px 0;
+}
+
+.pos-search input {
+  width: 100%;
+  max-width: 560px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.pos-search input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.08);
+}
+
 /* Section Headers */
 .section-header {
   font-size: 18px;

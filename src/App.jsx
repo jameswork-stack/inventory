@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import POS from "./pages/Pos";
 import Product from "./pages/Product";
 import Receipt from "./pages/Receipt";
+import Expense from "./pages/Expense";
 import Header from "./components/Header";
 import Product2 from "./pages/Product2";
 import Login from "./pages/Login";
@@ -92,6 +93,14 @@ useEffect(() => {
                 element={
                   <RequireAuth>
                     <Receipt />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/expense"
+                element={
+                  <RequireAuth>
+                    <Expense />
                   </RequireAuth>
                 }
               />

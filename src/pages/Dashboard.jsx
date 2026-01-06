@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, off } from "firebase/database";
 import "../styles/dashboard.css";
+import { getUser } from "../auth";
 
 // 📌 Recharts for Line Chart
 import {
@@ -28,6 +29,9 @@ const Dashboard = () => {
 
   const [totalToolCost, setTotalToolCost] = useState(0);
   const [totalToolProfit, setTotalToolProfit] = useState(0);
+  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [totalSalesAllTime, setTotalSalesAllTime] = useState(0);
+  const [totalDiscount, setTotalDiscount] = useState(0);
 
   const [salesData, setSalesData] = useState([]);
   const [startDate, setStartDate] = useState("");
@@ -150,6 +154,7 @@ const Dashboard = () => {
       const data = snapshot.val();
       if (!data) {
         setSalesData([]);
+        setTotalDiscount(0);
         return;
       }
 
@@ -186,10 +191,87 @@ const Dashboard = () => {
           totalProfit: values.totalProfit,
         })
       );
+      // compute total discount for the currently selected range
+      const totalDisc = filteredSales.reduce(
+        (s, sale) => s + (parseFloat(sale.discount) || 0),
+        0
+      );
+      setTotalDiscount(totalDisc);
 
       setSalesData(formatted);
     });
   }, [startDate, endDate]);
+
+  // ---------------------------
+  // TOTAL EXPENSES (per user)
+  // ---------------------------
+  useEffect(() => {
+    const user = getUser();
+    const keyFromUsername = (u) => {
+      if (!u) return "anonymous";
+      return u.replace(/\./g, ",").replace(/@/g, "_");
+    };
+
+    const userKey = user ? keyFromUsername(user.username) : "anonymous";
+    const isAdmin = user && user.username === "admin@inventory.com";
+
+    const expensesRef = isAdmin ? ref(db, `expenses`) : ref(db, `expenses/${userKey}`);
+
+    const handleSnapshot = (snap) => {
+      const val = snap.val() || {};
+
+      // Build a flat list of expense objects. Admin sees all users' expenses.
+      let list = [];
+      if (isAdmin) {
+        // val is { userKey: { expenseId: expenseObj, ... }, ... }
+        Object.values(val).forEach((userObj) => {
+          if (userObj) {
+            Object.values(userObj).forEach((exp) => list.push(exp));
+          }
+        });
+      } else {
+        // val is { expenseId: expenseObj, ... }
+        list = Object.values(val);
+      }
+
+      let filtered = list;
+      if (startDate && endDate) {
+        const s = new Date(startDate);
+        const e = new Date(endDate);
+        filtered = list.filter((it) => {
+          const d = new Date(it.date);
+          return d >= s && d <= e;
+        });
+      }
+
+      const sum = filtered.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+      setTotalExpenses(sum);
+    };
+
+    onValue(expensesRef, handleSnapshot);
+
+    return () => {
+      off(expensesRef, 'value', handleSnapshot);
+    };
+  }, [startDate, endDate]);
+
+  // ---------------------------
+  // TOTAL SALES (All Time) for net income calculation
+  // ---------------------------
+  useEffect(() => {
+    const salesRefAll = ref(db, "sales");
+    const handleSalesAll = (snap) => {
+      const val = snap.val() || {};
+      const list = Object.values(val);
+      const sum = list.reduce((s, it) => s + (parseFloat(it.totalAmount) || 0), 0);
+      setTotalSalesAllTime(sum);
+    };
+
+    onValue(salesRefAll, handleSalesAll);
+    return () => {
+      off(salesRefAll, 'value', handleSalesAll);
+    };
+  }, []);
 
 
   const totalSales = salesData.reduce((sum, d) => sum + d.totalAmount, 0);
@@ -241,6 +323,36 @@ const Dashboard = () => {
             ? totalSales.toFixed(2)
             : totalProfit.toFixed(2)}
         </p>
+      </div>
+
+      {/* Total Expenses Card */}
+      <div className="total-sales-card">
+        <h3>
+          {startDate && endDate
+            ? "Total Expenses in Selected Range"
+            : "Total Expenses (All Time)"}
+        </h3>
+        <p className="amount">₱{totalExpenses.toFixed(2)}</p>
+      </div>
+
+      {/* Total Discount Card */}
+      <div className="total-sales-card">
+        <h3>
+          {startDate && endDate
+            ? "Total Discount in Selected Range"
+            : "Total Discount (All Time)"}
+        </h3>
+        <p className="amount">₱{totalDiscount.toFixed(2)}</p>
+      </div>
+
+      {/* Total Net Income Card (uses selected range sales vs expenses) */}
+      <div className="total-sales-card">
+        <h3>
+          {startDate && endDate
+            ? "Net Income in Selected Range"
+            : "Total Net Income (All Time)"}
+        </h3>
+        <p className="amount">₱{(totalSales - totalExpenses).toFixed(2)}</p>
       </div>
 
       {/* ⭐ Chart Type Switch */}
