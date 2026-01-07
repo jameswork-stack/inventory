@@ -544,14 +544,14 @@ const Dashboard = () => {
           </p>
           <p>
             <strong>Total Stock:</strong>{" "}
-            <span className="stat-value">{totalLiters.toFixed(2)} L</span>
+            <span className="stat-value">{totalLiters.toFixed(2)} Qty</span>
           </p>
           {lowPaintStock.length > 0 && (
             <div className="low-stock-section">
               <h4>⚠ Low Stock Alert</h4>
               {lowPaintStock.map((p, i) => (
                 <div key={i} className="low-stock-item">
-                  {p.item} — {p.liters}Qty remaining (low stock, threshold: {p.threshold}Qty)
+                  {p.item} — {p.liters} Qty remaining (low stock, threshold: {p.threshold} Qty)
                 </div>
               ))}
             </div>
