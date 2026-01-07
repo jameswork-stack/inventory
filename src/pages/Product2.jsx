@@ -4,6 +4,34 @@ import { ref, onValue, update, remove, push } from "firebase/database";
 import { getUser } from "../auth";
 import "../styles/product2.css";
 
+// Add styles for stock status
+const styles = `
+  .low-stock {
+    background-color: #fff3cd;
+    color: #856404;
+    font-weight: 500;
+  }
+  .in-stock {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  .low-stock-badge {
+    display: inline-block;
+    background-color: #ffc107;
+    color: #000;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-top: 4px;
+  }
+`;
+
+// Add the styles to the document head
+const styleElement = document.createElement('style');
+styleElement.textContent = styles;
+document.head.appendChild(styleElement);
+
 const Product2 = () => {
   const [product, setProduct] = useState({
     category: "",
@@ -11,6 +39,8 @@ const Product2 = () => {
     quantity: "",
     price: "",
     cost: "",
+    costPerQty: "",
+    lowStockThreshold: "5", // Default low stock threshold of 5
   });
 
   const [products, setProducts] = useState([]);
@@ -24,7 +54,36 @@ const Product2 = () => {
 
   // Handle form input
   const handleChange = (e) => {
-    setProduct({ ...product, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    setProduct((prev) => {
+      const updated = { ...prev, [name]: value };
+
+      const quantity = parseFloat(updated.quantity) || 0;
+      const totalCost = parseFloat(updated.cost) || 0;
+      const perQty = parseFloat(updated.costPerQty) || 0;
+
+      // If user edited total cost, compute cost per qty
+      if (name === "cost") {
+        updated.costPerQty = quantity > 0 ? (totalCost / quantity).toFixed(2) : "";
+      }
+
+      // If user edited cost per qty, compute total cost
+      if (name === "costPerQty") {
+        updated.cost = !isNaN(perQty) ? Number((perQty * quantity).toFixed(2)) : "";
+      }
+
+      // If quantity changed, recalc whichever cost field is present
+      if (name === "quantity") {
+        if (!isNaN(perQty) && perQty > 0) {
+          updated.cost = Number((perQty * quantity).toFixed(2));
+        } else if (!isNaN(totalCost) && totalCost > 0) {
+          updated.costPerQty = quantity > 0 ? (totalCost / quantity).toFixed(2) : "";
+        }
+      }
+
+      return updated;
+    });
   };
 
   // Save Product with auto profit calculation
@@ -34,15 +93,18 @@ const Product2 = () => {
       const price = parseFloat(product.price) || 0;
       const cost = parseFloat(product.cost) || 0;
       const quantity = parseFloat(product.quantity) || 0;
-
-      const costPerQty = quantity > 0 ? cost / quantity : 0;
+      const costPerQtyInput = parseFloat(product.costPerQty) || 0;
+      const lowStockThreshold = parseInt(product.lowStockThreshold) || 5;
+      const costPerQty = costPerQtyInput > 0 ? costPerQtyInput : (quantity > 0 ? cost / quantity : 0);
       const profitPerQty = price - costPerQty;
       const totalProfit = profitPerQty * quantity;
 
       const newProduct = {
         ...product,
+        costPerQty,
         profitPerQty,
         totalProfit,
+        lowStockThreshold,
       };
 
       const productRef = ref(db, "tools");
@@ -55,7 +117,9 @@ const Product2 = () => {
         item: "",
         quantity: "",
         price: "",
-        cost: "",
+        cost: product.cost,
+        costPerQty: product.costPerQty,
+        lowStockThreshold: product.lowStockThreshold, // Keep the threshold for the next entry
       });
     } catch (error) {
       console.error("Error adding product: ", error);
@@ -83,8 +147,10 @@ const Product2 = () => {
       quantity: p.quantity || 0,
       price: p.price || 0,
       cost: p.cost || 0,
+      costPerQty: p.costPerQty ?? 0,
       profitPerQty: p.profitPerQty ?? 0,
       totalProfit: p.totalProfit ?? 0,
+      lowStockThreshold: p.lowStockThreshold ?? 5,
     });
   };
 
@@ -108,8 +174,10 @@ const Product2 = () => {
         quantity: Number(editData.quantity),
         price: Number(editData.price),
         cost: Number(editData.cost),
+        costPerQty: Number(editData.costPerQty || 0),
         profitPerQty: Number(editData.profitPerQty),
         totalProfit: Number(editData.totalProfit),
+        lowStockThreshold: Number(editData.lowStockThreshold || 5),
       });
 
       setEditingId(null);
@@ -196,6 +264,19 @@ const Product2 = () => {
                 required
                 min="0"
               />
+              <div style={{ marginTop: '5px' }}>
+                <label style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Low Stock Alert At:</label>
+                <input
+                  type="number"
+                  name="lowStockThreshold"
+                  placeholder="5"
+                  value={product.lowStockThreshold}
+                  onChange={handleChange}
+                  required
+                  min="1"
+                  style={{ width: '100%' }}
+                />
+              </div>
             </div>
 
             <div className="form-group">
@@ -211,17 +292,33 @@ const Product2 = () => {
               />
             </div>
 
-            <div className="form-group">
-              <label>Cost</label>
-              <input
-                type="number"
-                name="cost"
-                placeholder="0"
-                value={product.cost}
-                onChange={handleChange}
-                required
-                min="0"
-              />
+            <div className="form-row-inline">
+              <div className="form-group" style={{ flex: 1.5 }}>
+                <label>Cost per Qty</label>
+                <input
+                  type="number"
+                  name="costPerQty"
+                  placeholder="0"
+                  value={product.costPerQty}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Total Cost</label>
+                <input
+                  type="number"
+                  name="cost"
+                  placeholder="0"
+                  value={product.cost}
+                  onChange={handleChange}
+                  required
+                  min="0"
+                  step="0.01"
+                />
+              </div>
             </div>
           </div>
 
@@ -261,6 +358,7 @@ const Product2 = () => {
                   <th>Price</th>
                   <th>Cost</th>
                   <th>Profit</th>
+                  <th>Stock Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -309,6 +407,16 @@ const Product2 = () => {
                             value={editData.cost}
                             onChange={handleEditChange}
                           />
+                          <div style={{ marginTop: 6 }}>
+                            <label style={{ fontSize: 12, display: "block" }}>Per Qty:</label>
+                            <input
+                              type="number"
+                              name="costPerQty"
+                              value={editData.costPerQty}
+                              onChange={handleEditChange}
+                              step="0.01"
+                            />
+                          </div>
                         </td>
 
                         <td>
@@ -368,11 +476,25 @@ const Product2 = () => {
 
                       <td>₱{p.price}</td>
 
-                      <td>₱{p.cost}</td>
+                      <td>
+                        ₱{p.cost} {p.costPerQty !== undefined && (
+                          <span style={{ fontSize: 12 }}> (₱{Number(p.costPerQty).toFixed(2)} per qty)</span>
+                        )}
+                      </td>
+
+
 
                       <td>
                         Per Qty: ₱{Number(p.profitPerQty).toFixed(2)} <br />
                         Total: ₱{Number(p.totalProfit).toFixed(2)}
+                      </td>
+
+                      <td className={Number(p.quantity) <= (p.lowStockThreshold || 5) ? 'low-stock' : 'in-stock'}>
+                        <div>Current: {p.quantity} qty</div>
+                        <div>Alert at: {p.lowStockThreshold || 5} qty</div>
+                        {Number(p.quantity) <= (p.lowStockThreshold || 5) && (
+                          <div className="low-stock-badge">LOW STOCK</div>
+                        )}
                       </td>
 
                       <td>

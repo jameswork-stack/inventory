@@ -77,10 +77,11 @@ const Dashboard = () => {
         if (!isNaN(liters)) {
           litersTotal += liters;
 
-          if (liters < 17) {  // Changed from 1 to 17 liters for low stock threshold
+          if (liters < (p.lowStockThreshold || 17)) {  // Use the product's low stock threshold or default to 17L
             lowStockList.push({
               item: p.item,
               liters: liters.toFixed(2),
+              threshold: p.lowStockThreshold || 17  // Store the threshold for display
             });
           }
         }
@@ -130,10 +131,12 @@ const Dashboard = () => {
         toolCost += cost;
         toolProfit += profit;
 
-        if (quantity < 11) {  // Changed from 5 to 11 units for low stock threshold
+        const threshold = t.lowStockThreshold || 5;  // Use the product's threshold or default to 5
+        if (quantity < threshold) {  // Changed from <= to < to trigger only when strictly below threshold
           lowTools.push({
             item: t.item,
             quantity,
+            threshold  // Include the threshold in the alert
           });
         }
       });
@@ -416,7 +419,7 @@ const Dashboard = () => {
               <h4>⚠ Low Stock Alert</h4>
               {lowPaintStock.map((p, i) => (
                 <div key={i} className="low-stock-item">
-                  {p.item} — {p.liters} L
+                  {p.item} — {p.liters}L remaining (low stock, threshold: {p.threshold}L)
                 </div>
               ))}
             </div>
@@ -439,7 +442,7 @@ const Dashboard = () => {
               <h4>⚠ Low Stock Alert</h4>
               {lowToolStock.map((t, i) => (
                 <div key={i} className="low-stock-item">
-                  {t.item} — {t.quantity} qty
+                  {t.item} — {t.quantity} qty (low stock, threshold: {t.threshold} qty)
                 </div>
               ))}
             </div>
