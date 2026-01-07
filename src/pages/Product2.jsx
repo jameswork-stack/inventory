@@ -52,6 +52,16 @@ const Product2 = () => {
   const isStaff = currentUser && currentUser.username === "staff@inventory.com";
   const [editData, setEditData] = useState({});
 
+  // Stock management state
+  const [stockForm, setStockForm] = useState({
+    productId: "",
+    transactionType: "in", // "in" or "out"
+    quantity: "",
+    costPerQty: "",
+  });
+  const [productSearch, setProductSearch] = useState("");
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
   // Handle form input
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -141,15 +151,9 @@ const Product2 = () => {
   // Start editing row
   const startEdit = (p) => {
     setEditingId(p.id);
+    // Only load editable fields
     setEditData({
-      category: p.category || "",
       item: p.item || "",
-      quantity: p.quantity || 0,
-      price: p.price || 0,
-      cost: p.cost || 0,
-      costPerQty: p.costPerQty ?? 0,
-      profitPerQty: p.profitPerQty ?? 0,
-      totalProfit: p.totalProfit ?? 0,
       lowStockThreshold: p.lowStockThreshold ?? 5,
     });
   };
@@ -166,17 +170,11 @@ const Product2 = () => {
     setEditData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Save edited values
+  // Save edited values (only item and low stock threshold)
   const saveEdit = async (id) => {
     try {
       await update(ref(db, `tools/${id}`), {
-        ...editData,
-        quantity: Number(editData.quantity),
-        price: Number(editData.price),
-        cost: Number(editData.cost),
-        costPerQty: Number(editData.costPerQty || 0),
-        profitPerQty: Number(editData.profitPerQty),
-        totalProfit: Number(editData.totalProfit),
+        item: editData.item,
         lowStockThreshold: Number(editData.lowStockThreshold || 5),
       });
 
@@ -196,6 +194,153 @@ const Product2 = () => {
       await remove(ref(db, `tools/${id}`));
     } catch (error) {
       console.error("Error deleting:", error);
+    }
+  };
+
+  // Handle stock form input
+  const handleStockChange = (e) => {
+    const { name, value } = e.target;
+    setStockForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handle product search input
+  const handleProductSearch = (e) => {
+    const value = e.target.value;
+    setProductSearch(value);
+    setShowProductDropdown(true);
+    
+    if (!value) {
+      setStockForm((prev) => ({ ...prev, productId: "" }));
+    }
+  };
+
+  // Handle product selection from dropdown
+  const selectProduct = (product) => {
+    setStockForm((prev) => ({
+      ...prev,
+      productId: product.id,
+    }));
+    setProductSearch(`${product.category} - ${product.item} (${product.quantity} qty)`);
+    setShowProductDropdown(false);
+  };
+
+  // Filter products based on search
+  const filteredProductsForStock = products.filter((p) => {
+    if (!productSearch) return false;
+    const searchLower = productSearch.toLowerCase();
+    const category = (p.category || "").toLowerCase();
+    const item = (p.item || "").toLowerCase();
+    return category.includes(searchLower) || item.includes(searchLower);
+  });
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProductDropdown && !event.target.closest('.product-search-container')) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProductDropdown]);
+
+  // Handle stock in/out transaction
+  const handleStockTransaction = async (e) => {
+    e.preventDefault();
+    
+    if (!stockForm.productId || !stockForm.quantity) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    // For stock in, cost per qty is required
+    if (stockForm.transactionType === "in" && !stockForm.costPerQty) {
+      alert("Please enter cost per qty for stock in");
+      return;
+    }
+
+    try {
+      const product = products.find((p) => p.id === stockForm.productId);
+      if (!product) {
+        alert("Product not found");
+        return;
+      }
+
+      const transactionQuantity = parseFloat(stockForm.quantity) || 0;
+      const newCostPerQty = parseFloat(stockForm.costPerQty) || 0;
+      const currentQuantity = parseFloat(product.quantity) || 0;
+      const currentTotalCost = parseFloat(product.cost) || 0;
+      const currentCostPerQty = parseFloat(product.costPerQty) || 0;
+      const price = parseFloat(product.price) || 0;
+
+      let updatedQuantity, totalNewCost, weightedCostPerQty;
+
+      if (stockForm.transactionType === "in") {
+        // STOCK IN: Add stock and calculate weighted average cost
+        updatedQuantity = currentQuantity + transactionQuantity;
+        const newStockCost = newCostPerQty * transactionQuantity;
+        totalNewCost = currentTotalCost + newStockCost;
+        weightedCostPerQty = updatedQuantity > 0 
+          ? totalNewCost / updatedQuantity 
+          : newCostPerQty;
+      } else {
+        // STOCK OUT: Remove stock and reduce cost proportionally
+        if (currentQuantity <= 0) {
+          alert("No stock available to remove!");
+          return;
+        }
+        
+        if (transactionQuantity > currentQuantity) {
+          alert("Cannot remove more stock than available!");
+          return;
+        }
+        
+        const proportionRemaining = currentQuantity > 0 
+          ? (currentQuantity - transactionQuantity) / currentQuantity 
+          : 0;
+        
+        updatedQuantity = currentQuantity - transactionQuantity;
+        totalNewCost = currentTotalCost * proportionRemaining;
+        weightedCostPerQty = currentCostPerQty; // Cost per qty remains the same
+      }
+
+      // Recalculate profit
+      let profitPerQty, totalProfit;
+      
+      if (updatedQuantity > 0) {
+        profitPerQty = price - weightedCostPerQty;
+        totalProfit = profitPerQty * updatedQuantity;
+      } else {
+        profitPerQty = 0;
+        totalProfit = 0;
+      }
+
+      // Update product in Firebase
+      await update(ref(db, `tools/${stockForm.productId}`), {
+        quantity: updatedQuantity,
+        cost: parseFloat(totalNewCost.toFixed(2)),
+        costPerQty: parseFloat(weightedCostPerQty.toFixed(2)),
+        profitPerQty: parseFloat(profitPerQty.toFixed(2)),
+        totalProfit: parseFloat(totalProfit.toFixed(2)),
+      });
+
+      alert(`Stock ${stockForm.transactionType === "in" ? "added" : "removed"} successfully!`);
+      
+      // Reset stock form
+      setStockForm({
+        productId: "",
+        transactionType: "in",
+        quantity: "",
+        costPerQty: "",
+      });
+      setProductSearch("");
+      setShowProductDropdown(false);
+    } catch (error) {
+      console.error("Error processing stock transaction: ", error);
+      alert("Error processing stock transaction. Please try again.");
     }
   };
 
@@ -252,8 +397,8 @@ const Product2 = () => {
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
+          <div className="form-row-inline">
+            <div className="form-group" style={{ flex: 1.5 }}>
               <label>Quantity</label>
               <input
                 type="number"
@@ -264,21 +409,23 @@ const Product2 = () => {
                 required
                 min="0"
               />
-              <div style={{ marginTop: '5px' }}>
-                <label style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Low Stock Alert At:</label>
-                <input
-                  type="number"
-                  name="lowStockThreshold"
-                  placeholder="5"
-                  value={product.lowStockThreshold}
-                  onChange={handleChange}
-                  required
-                  min="1"
-                  style={{ width: '100%' }}
-                />
-              </div>
             </div>
 
+            <div className="form-group">
+              <label>Low Stock Alert</label>
+              <input
+                type="number"
+                name="lowStockThreshold"
+                placeholder="5"
+                value={product.lowStockThreshold}
+                onChange={handleChange}
+                required
+                min="1"
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
             <div className="form-group">
               <label>Price</label>
               <input
@@ -291,34 +438,34 @@ const Product2 = () => {
                 min="0"
               />
             </div>
+          </div>
 
-            <div className="form-row-inline">
-              <div className="form-group" style={{ flex: 1.5 }}>
-                <label>Cost per Qty</label>
-                <input
-                  type="number"
-                  name="costPerQty"
-                  placeholder="0"
-                  value={product.costPerQty}
-                  onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                />
-              </div>
+          <div className="form-row-inline">
+            <div className="form-group" style={{ flex: 1.5 }}>
+              <label>Cost per Qty</label>
+              <input
+                type="number"
+                name="costPerQty"
+                placeholder="0"
+                value={product.costPerQty}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Total Cost</label>
-                <input
-                  type="number"
-                  name="cost"
-                  placeholder="0"
-                  value={product.cost}
-                  onChange={handleChange}
-                  required
-                  min="0"
-                  step="0.01"
-                />
-              </div>
+            <div className="form-group">
+              <label>Total Cost</label>
+              <input
+                type="number"
+                name="cost"
+                placeholder="0"
+                value={product.cost}
+                onChange={handleChange}
+                required
+                min="0"
+                step="0.01"
+              />
             </div>
           </div>
 
@@ -338,6 +485,140 @@ const Product2 = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input"
         />
+      </div>
+
+      {/* Stock Management Section */}
+      <div className="product2-form-section">
+        <h3>Stock In / Out Management</h3>
+        <form onSubmit={handleStockTransaction} className="product2-form">
+          <div className="form-row">
+            <div className="form-group">
+              <label>Transaction Type</label>
+              <select
+                name="transactionType"
+                value={stockForm.transactionType}
+                onChange={handleStockChange}
+                required
+              >
+                <option value="in">Stock In (Add)</option>
+                <option value="out">Stock Out (Remove)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group product-search-container" style={{ position: "relative" }}>
+              <label>Select Product</label>
+              <input
+                type="text"
+                placeholder="Search product by category or item name..."
+                value={productSearch}
+                onChange={handleProductSearch}
+                onFocus={() => setShowProductDropdown(true)}
+                required
+                style={{ width: "100%" }}
+              />
+              {showProductDropdown && filteredProductsForStock.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "white",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    zIndex: 1000,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    marginTop: "4px",
+                  }}
+                >
+                  {filteredProductsForStock.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => selectProduct(p)}
+                      style={{
+                        padding: "10px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #eee",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "#f0f0f0";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "white";
+                      }}
+                    >
+                      <strong>{p.category}</strong> - {p.item} ({p.quantity} qty)
+                    </div>
+                  ))}
+                </div>
+              )}
+              {showProductDropdown && productSearch && filteredProductsForStock.length === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "white",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    padding: "10px",
+                    zIndex: 1000,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    marginTop: "4px",
+                  }}
+                >
+                  No products found
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="form-row-inline">
+            <div className="form-group" style={{ flex: 1.5 }}>
+              <label>
+                {stockForm.transactionType === "in" ? "Quantity to Add" : "Quantity to Remove"}
+              </label>
+              <input
+                type="number"
+                name="quantity"
+                placeholder="0"
+                value={stockForm.quantity}
+                onChange={handleStockChange}
+                required
+                min="0"
+                step="1"
+              />
+            </div>
+          </div>
+
+          {stockForm.transactionType === "in" && (
+            <div className="form-row">
+              <div className="form-group">
+                <label>Cost per Qty</label>
+                <input
+                  type="number"
+                  name="costPerQty"
+                  placeholder="0"
+                  value={stockForm.costPerQty}
+                  onChange={handleStockChange}
+                  required
+                  min="0"
+                  step="0.01"
+                />
+                <small className="hint">Enter the cost per qty for this new stock</small>
+              </div>
+            </div>
+          )}
+
+          <button type="submit" className="submit-btn">
+            {stockForm.transactionType === "in" ? "Add Stock" : "Remove Stock"}
+          </button>
+        </form>
       </div>
 
       {/* Product List by Category */}
@@ -379,66 +660,39 @@ const Product2 = () => {
                             name="item"
                             value={editData.item}
                             onChange={handleEditChange}
+                            style={{ width: "100%" }}
                           />
                         </td>
 
+                        <td>{p.quantity}</td>
+
+                        <td>₱{p.price}</td>
+
                         <td>
-                          <input
-                            type="number"
-                            name="quantity"
-                            value={editData.quantity}
-                            onChange={handleEditChange}
-                          />
+                          ₱{p.cost} {p.costPerQty !== undefined && (
+                            <span style={{ fontSize: 12 }}> (₱{Number(p.costPerQty).toFixed(2)} per qty)</span>
+                          )}
                         </td>
 
                         <td>
-                          <input
-                            type="number"
-                            name="price"
-                            value={editData.price}
-                            onChange={handleEditChange}
-                          />
+                          Per Qty: ₱{Number(p.profitPerQty).toFixed(2)} <br />
+                          Total: ₱{Number(p.totalProfit).toFixed(2)}
                         </td>
 
                         <td>
-                          <input
-                            type="number"
-                            name="cost"
-                            value={editData.cost}
-                            onChange={handleEditChange}
-                          />
-                          <div style={{ marginTop: 6 }}>
-                            <label style={{ fontSize: 12, display: "block" }}>Per Qty:</label>
+                          <div style={{ marginBottom: "8px" }}>
+                            <label style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}>
+                              Low Stock Alert:
+                            </label>
                             <input
                               type="number"
-                              name="costPerQty"
-                              value={editData.costPerQty}
+                              name="lowStockThreshold"
+                              value={editData.lowStockThreshold}
                               onChange={handleEditChange}
-                              step="0.01"
+                              min="1"
+                              step="1"
+                              style={{ width: "100px" }}
                             />
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="profit-edit-section">
-                            <div className="profit-edit-row">
-                              <label>Per Qty:</label>
-                              <input
-                                type="number"
-                                name="profitPerQty"
-                                value={editData.profitPerQty}
-                                onChange={handleEditChange}
-                              />
-                            </div>
-                            <div className="profit-edit-row">
-                              <label>Total:</label>
-                              <input
-                                type="number"
-                                name="totalProfit"
-                                value={editData.totalProfit}
-                                onChange={handleEditChange}
-                              />
-                            </div>
                           </div>
                         </td>
 

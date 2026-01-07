@@ -46,7 +46,7 @@ const Product = () => {
     price: "",
     priceUnit: "perL",
     cost: "",
-    costPerLiter: "",
+    costPerUnit: "",
     lowStockThreshold: "", // New field for low stock threshold
   });
 
@@ -59,6 +59,17 @@ const Product = () => {
   const isStaff = currentUser && currentUser.username === "staff@inventory.com";
   const [editData, setEditData] = useState({});
 
+  // Stock management state
+  const [stockForm, setStockForm] = useState({
+    productId: "",
+    transactionType: "in", // "in" or "out"
+    quantity: "",
+    unit: "L",
+    costPerUnit: "",
+  });
+  const [productSearch, setProductSearch] = useState("");
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
   // Fetch products from Firebase
   useEffect(() => {
     const productRef = ref(db, "products");
@@ -69,6 +80,20 @@ const Product = () => {
     });
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProductDropdown && !event.target.closest('.product-search-container')) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProductDropdown]);
+
   // Handle form input (Add)
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -77,18 +102,23 @@ const Product = () => {
       const updated = { ...prev, [name]: value };
 
       // parse numeric values for calculations
-      const literValueRaw = parseFloat(updated.literValue) || 0;
-      const totalLiters = updated.literUnit === "mL" ? literValueRaw / 1000 : literValueRaw;
+      const quantity = parseFloat(updated.literValue) || 0;
+      let totalLiters = quantity; // Default for liters
+      
+      // Handle different unit types
+      if (updated.literUnit === 'mL') {
+        totalLiters = quantity / 1000; // Convert mL to L
+      }
       const totalCost = parseFloat(updated.cost) || 0;
-      const perL = parseFloat(updated.costPerLiter) || 0;
+      const perL = parseFloat(updated.costPerUnit) || 0;
 
-      // If user edited total cost, compute cost per liter
+      // If user edited total cost, compute cost per unit
       if (name === "cost") {
-        updated.costPerLiter = totalLiters > 0 ? (totalCost / totalLiters).toFixed(2) : "";
+        updated.costPerUnit = totalLiters > 0 ? (totalCost / totalLiters).toFixed(2) : "";
       }
 
-      // If user edited cost per liter, compute total cost
-      if (name === "costPerLiter") {
+      // If user edited cost per unit, compute total cost
+      if (name === "costPerUnit") {
         updated.cost = !isNaN(perL) ? Number((perL * totalLiters).toFixed(2)) : "";
       }
 
@@ -97,7 +127,7 @@ const Product = () => {
         if (!isNaN(perL) && perL > 0) {
           updated.cost = Number((perL * totalLiters).toFixed(2));
         } else if (!isNaN(totalCost) && totalCost > 0) {
-          updated.costPerLiter = totalLiters > 0 ? (totalCost / totalLiters).toFixed(2) : "";
+          updated.costPerUnit = totalLiters > 0 ? (totalCost / totalLiters).toFixed(2) : "";
         }
       }
 
@@ -113,20 +143,29 @@ const Product = () => {
       const literValueRaw = parseFloat(product.literValue) || 0;
       const priceInput = parseFloat(product.price) || 0;
       const totalCost = parseFloat(product.cost) || 0;
-      const costPerLiterInput = parseFloat(product.costPerLiter) || 0;
+      const costPerUnitInput = parseFloat(product.costPerUnit) || 0;
       const lowStockThreshold = parseFloat(product.lowStockThreshold) || 0;
 
       // Convert amount to liters
       const totalLiters = product.literUnit === "mL" ? literValueRaw / 1000 : literValueRaw;
 
-      // Convert input price to per liter
-      const pricePerLiter = product.priceUnit === "permL" ? priceInput * 1000 : priceInput;
+      // Convert input price to per liter based on unit
+      let pricePerLiter = priceInput;
+      if (product.priceUnit === "permL") {
+        pricePerLiter = priceInput * 1000; // Convert per mL to per L
+      } else if (product.priceUnit === "perGallonSet") {
+        // No conversion needed for sets, just use as is
+        pricePerLiter = priceInput;
+      } else if (product.priceUnit === "perPailSet") {
+        // No conversion needed for sets, just use as is
+        pricePerLiter = priceInput;
+      }
 
-      // Use provided costPerLiter if given, otherwise compute from total cost
-      const costPerLiter = costPerLiterInput > 0 ? costPerLiterInput : (totalLiters > 0 ? totalCost / totalLiters : 0);
+      // Use provided costPerUnit if given, otherwise compute from total cost
+      const costPerUnit = costPerUnitInput > 0 ? costPerUnitInput : (totalLiters > 0 ? totalCost / totalLiters : 0);
 
       // Profit per liter & total
-      const profitPerLiter = pricePerLiter - costPerLiter;
+      const profitPerLiter = pricePerLiter - costPerUnit;
       const totalProfit = profitPerLiter * totalLiters;
 
       const newProduct = {
@@ -134,7 +173,7 @@ const Product = () => {
         literValue: literValueRaw,
         totalLiters,
         pricePerLiter,
-        costPerLiter,
+        costPerUnit,
         profitPerLiter,
         totalProfit,
         lowStockThreshold,
@@ -155,7 +194,7 @@ const Product = () => {
         price: "",
         priceUnit: "perL",
         cost: product.cost,
-        costPerLiter: product.costPerLiter,
+        costPerUnit: product.costPerUnit,
         lowStockThreshold: product.lowStockThreshold,
       });
     } catch (error) {
@@ -167,18 +206,9 @@ const Product = () => {
   const startEdit = (p) => {
     setEditingId(p.id);
 
-    // Initialize editData with existing fields (keep safety defaults)
+    // Initialize editData with only editable fields
     setEditData({
-      brand: p.brand || "",
       item: p.item || "",
-      literValue: p.literValue ?? "", // keep original (could be 0)
-      literUnit: p.literUnit || "L",
-      price: p.price ?? "",
-      priceUnit: p.priceUnit || "perL",
-      cost: p.cost ?? "",
-      // allow manual override of profitPerLiter and totalProfit
-      profitPerLiter: p.profitPerLiter ?? p.profitPerL ?? 0,
-      totalProfit: p.totalProfit ?? 0,
       lowStockThreshold: p.lowStockThreshold ?? 0,
     });
   };
@@ -195,22 +225,12 @@ const Product = () => {
     setEditData({});
   };
 
-  // Save edited row to Firebase (user requested manual override allowed)
+  // Save edited row to Firebase (only item and low stock threshold)
   const saveEdit = async (id) => {
     try {
-      // Prepare sanitized values (convert numeric fields)
+      // Only update item and low stock threshold
       const updates = {
-        brand: editData.brand,
         item: editData.item,
-        literValue: editData.literValue === "" ? 0 : Number(editData.literValue),
-        literUnit: editData.literUnit,
-        price: editData.price === "" ? 0 : Number(editData.price),
-        priceUnit: editData.priceUnit,
-        cost: editData.cost === "" ? 0 : Number(editData.cost),
-        // Allow direct manual edits of these profit fields (don't auto-recalc)
-        profitPerLiter:
-          editData.profitPerLiter === "" ? 0 : Number(editData.profitPerLiter),
-        totalProfit: editData.totalProfit === "" ? 0 : Number(editData.totalProfit),
         lowStockThreshold: editData.lowStockThreshold === "" ? 0 : Number(editData.lowStockThreshold),
       };
 
@@ -260,6 +280,218 @@ const Product = () => {
     console.error("Error deleting product:", err);
   }
 };
+
+  // Handle stock form input
+  const handleStockChange = (e) => {
+    const { name, value } = e.target;
+    setStockForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handle product search input
+  const handleProductSearch = (e) => {
+    const value = e.target.value;
+    setProductSearch(value);
+    setShowProductDropdown(true);
+    
+    // If input is cleared, clear selected product
+    if (!value) {
+      setStockForm((prev) => ({ ...prev, productId: "" }));
+    }
+  };
+
+  // Handle product selection from dropdown
+  const selectProduct = (product) => {
+    setStockForm((prev) => ({
+      ...prev,
+      productId: product.id,
+      unit: product.literUnit || "L",
+    }));
+    setProductSearch(`${product.brand} - ${product.item} (${product.literValue} ${product.literUnit})`);
+    setShowProductDropdown(false);
+  };
+
+  // Filter products based on search
+  const filteredProductsForStock = products.filter((p) => {
+    if (!productSearch) return false;
+    const searchLower = productSearch.toLowerCase();
+    const brand = (p.brand || "").toLowerCase();
+    const item = (p.item || "").toLowerCase();
+    return brand.includes(searchLower) || item.includes(searchLower);
+  });
+
+  // Handle stock in/out transaction
+  const handleStockTransaction = async (e) => {
+    e.preventDefault();
+    
+    if (!stockForm.productId || !stockForm.quantity) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    // For stock in, cost per unit is required
+    if (stockForm.transactionType === "in" && !stockForm.costPerUnit) {
+      alert("Please enter cost per unit for stock in");
+      return;
+    }
+
+    try {
+      const product = products.find((p) => p.id === stockForm.productId);
+      if (!product) {
+        alert("Product not found");
+        return;
+      }
+
+      const transactionQuantity = parseFloat(stockForm.quantity) || 0;
+      const newCostPerUnit = parseFloat(stockForm.costPerUnit) || 0;
+      const newUnit = stockForm.unit;
+      const productUnit = product.literUnit || "L";
+      const currentQuantityValue = parseFloat(product.literValue) || 0;
+      const currentTotalCost = parseFloat(product.cost) || 0;
+      const currentCostPerUnit = parseFloat(product.costPerUnit) || 0;
+
+      // Handle different unit types - convert everything to a common base for calculation
+      let currentQuantityInBase, transactionQuantityInBase, updatedQuantityValue, updatedUnit;
+
+      // For gallon and pail products, treat as whole units (no conversion)
+      if (productUnit === "gallon" || productUnit === "pail") {
+        // Ensure new unit matches product unit
+        if (newUnit !== productUnit) {
+          alert(`Unit mismatch! Product is in ${productUnit}, please use the same unit.`);
+          return;
+        }
+        
+        currentQuantityInBase = currentQuantityValue;
+        transactionQuantityInBase = transactionQuantity;
+        
+        if (stockForm.transactionType === "in") {
+          updatedQuantityValue = currentQuantityInBase + transactionQuantityInBase;
+        } else {
+          if (transactionQuantityInBase > currentQuantityInBase) {
+            alert("Cannot remove more stock than available!");
+            return;
+          }
+          updatedQuantityValue = currentQuantityInBase - transactionQuantityInBase;
+        }
+        updatedUnit = productUnit;
+      } 
+      // For L and mL products, convert to liters for calculation
+      else {
+        // Convert current quantity to liters
+        currentQuantityInBase = productUnit === "mL" 
+          ? currentQuantityValue / 1000 
+          : currentQuantityValue;
+
+        // Convert transaction quantity to liters
+        if (newUnit === "mL") {
+          transactionQuantityInBase = transactionQuantity / 1000;
+        } else if (newUnit === "L") {
+          transactionQuantityInBase = transactionQuantity;
+        } else {
+          alert("Unit mismatch! Product is in L/mL, please use L or mL.");
+          return;
+        }
+
+        // Calculate updated quantity
+        let totalQuantityInLiters;
+        if (stockForm.transactionType === "in") {
+          totalQuantityInLiters = currentQuantityInBase + transactionQuantityInBase;
+        } else {
+          if (transactionQuantityInBase > currentQuantityInBase) {
+            alert("Cannot remove more stock than available!");
+            return;
+          }
+          totalQuantityInLiters = currentQuantityInBase - transactionQuantityInBase;
+        }
+        
+        // Convert back to appropriate unit for storage
+        if (totalQuantityInLiters >= 1) {
+          updatedUnit = "L";
+          updatedQuantityValue = totalQuantityInLiters;
+        } else {
+          updatedUnit = "mL";
+          updatedQuantityValue = totalQuantityInLiters * 1000;
+        }
+      }
+
+      let totalNewCost, weightedCostPerUnit, totalQuantityInBase;
+
+      if (stockForm.transactionType === "in") {
+        // STOCK IN: Add stock and calculate weighted average cost
+        const newStockCost = newCostPerUnit * transactionQuantityInBase;
+        totalNewCost = currentTotalCost + newStockCost;
+        totalQuantityInBase = currentQuantityInBase + transactionQuantityInBase;
+        weightedCostPerUnit = totalQuantityInBase > 0 
+          ? totalNewCost / totalQuantityInBase 
+          : newCostPerUnit;
+      } else {
+        // STOCK OUT: Remove stock and reduce cost proportionally
+        if (currentQuantityInBase <= 0) {
+          alert("No stock available to remove!");
+          return;
+        }
+        
+        const proportionRemaining = currentQuantityInBase > 0 
+          ? (currentQuantityInBase - transactionQuantityInBase) / currentQuantityInBase 
+          : 0;
+        
+        totalNewCost = currentTotalCost * proportionRemaining;
+        totalQuantityInBase = currentQuantityInBase - transactionQuantityInBase;
+        weightedCostPerUnit = currentCostPerUnit; // Cost per unit remains the same
+      }
+
+      // Recalculate profit based on product's price unit
+      let pricePerUnit = parseFloat(product.price) || 0;
+      let profitPerUnit, totalProfit;
+
+      if (totalQuantityInBase > 0) {
+        if (product.priceUnit === "perGallonSet" || product.priceUnit === "perPailSet") {
+          profitPerUnit = pricePerUnit - weightedCostPerUnit;
+          totalProfit = profitPerUnit * totalQuantityInBase;
+        } else if (product.priceUnit === "perL") {
+          profitPerUnit = pricePerUnit - weightedCostPerUnit;
+          totalProfit = profitPerUnit * totalQuantityInBase;
+        } else if (product.priceUnit === "permL") {
+          const pricePerLiter = pricePerUnit * 1000;
+          profitPerUnit = pricePerLiter - weightedCostPerUnit;
+          totalProfit = profitPerUnit * totalQuantityInBase;
+        } else {
+          profitPerUnit = pricePerUnit - weightedCostPerUnit;
+          totalProfit = profitPerUnit * totalQuantityInBase;
+        }
+      } else {
+        // If quantity is zero, set profit to zero
+        profitPerUnit = 0;
+        totalProfit = 0;
+      }
+
+      // Update product in Firebase
+      await update(ref(db, `products/${stockForm.productId}`), {
+        literValue: updatedQuantityValue,
+        literUnit: updatedUnit,
+        cost: parseFloat(totalNewCost.toFixed(2)),
+        costPerUnit: parseFloat(weightedCostPerUnit.toFixed(2)),
+        totalLiters: totalQuantityInBase,
+        profitPerLiter: parseFloat(profitPerUnit.toFixed(2)),
+        totalProfit: parseFloat(totalProfit.toFixed(2)),
+      });
+
+      alert(`Stock ${stockForm.transactionType === "in" ? "added" : "removed"} successfully!`);
+      
+      // Reset stock form
+      setStockForm({
+        productId: "",
+        transactionType: "in",
+        quantity: "",
+        unit: "L",
+        costPerUnit: "",
+      });
+      setProductSearch("");
+      setShowProductDropdown(false);
+    } catch (error) {
+      console.error("Error processing stock transaction: ", error);
+      alert("Error processing stock transaction. Please try again.");
+    }
+  };
 
 
   return (
@@ -317,6 +549,8 @@ const Product = () => {
             <div className="form-group">
               <label>Unit</label>
               <select name="literUnit" value={product.literUnit} onChange={handleChange}>
+                <option value="gallon">Gallon (Set)</option>
+                <option value="pail">Pail (Set)</option>
                 <option value="L">Liter</option>
                 <option value="mL">Milliliter</option>
               </select>
@@ -339,6 +573,8 @@ const Product = () => {
             <div className="form-group">
               <label>Price Unit</label>
               <select name="priceUnit" value={product.priceUnit} onChange={handleChange}>
+                <option value="perGallonSet">₱ per Gallon (Set)</option>
+                <option value="perPailSet">₱ per Pail (Set)</option>
                 <option value="perL">₱ per Liter</option>
                 <option value="permL">₱ per Milliliter</option>
               </select>
@@ -348,12 +584,12 @@ const Product = () => {
           <div className="form-row">
             <div className="form-row-inline">
               <div className="form-group" style={{ flex: 1.5 }}>
-                <label>Cost per L</label>
+                <label>Cost per Unit</label>
                 <input
                   type="number"
-                  name="costPerLiter"
+                  name="costPerUnit"
                   placeholder="0"
-                  value={product.costPerLiter}
+                  value={product.costPerUnit}
                   onChange={handleChange}
                   min="0"
                   step="0.01"
@@ -378,7 +614,7 @@ const Product = () => {
 
           <div className="form-row">
             <div className="form-group">
-              <label>Low Stock Alert (Liters)</label>
+              <label>Low Stock Alert (Sets)</label>
               <input
                 type="number"
                 name="lowStockThreshold"
@@ -399,6 +635,155 @@ const Product = () => {
       </div>
 
       {/* Search Section */}
+      
+
+      {/* Stock Management Section */}
+      <div className="product-form-section">
+        <h3>Stock In / Out Management</h3>
+        <form onSubmit={handleStockTransaction} className="product-form">
+          <div className="form-row">
+            <div className="form-group">
+              <label>Transaction Type</label>
+              <select
+                name="transactionType"
+                value={stockForm.transactionType}
+                onChange={handleStockChange}
+                required
+              >
+                <option value="in">Stock In (Add)</option>
+                <option value="out">Stock Out (Remove)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group product-search-container" style={{ position: "relative" }}>
+              <label>Select Product</label>
+              <input
+                type="text"
+                placeholder="Search product by brand or item name..."
+                value={productSearch}
+                onChange={handleProductSearch}
+                onFocus={() => setShowProductDropdown(true)}
+                required
+                style={{ width: "100%" }}
+              />
+              {showProductDropdown && filteredProductsForStock.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "white",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    zIndex: 1000,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    marginTop: "4px",
+                  }}
+                >
+                  {filteredProductsForStock.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => selectProduct(p)}
+                      style={{
+                        padding: "10px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #eee",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "#f0f0f0";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "white";
+                      }}
+                    >
+                      <strong>{p.brand}</strong> - {p.item} ({p.literValue} {p.literUnit})
+                    </div>
+                  ))}
+                </div>
+              )}
+              {showProductDropdown && productSearch && filteredProductsForStock.length === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "white",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    padding: "10px",
+                    zIndex: 1000,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    marginTop: "4px",
+                  }}
+                >
+                  No products found
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="form-row-inline">
+            <div className="form-group" style={{ flex: 1.5 }}>
+              <label>
+                {stockForm.transactionType === "in" ? "Quantity to Add" : "Quantity to Remove"}
+              </label>
+              <input
+                type="number"
+                name="quantity"
+                placeholder="0"
+                value={stockForm.quantity}
+                onChange={handleStockChange}
+                required
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div className="form-group">
+              <label>Unit</label>
+              <select
+                name="unit"
+                value={stockForm.unit}
+                onChange={handleStockChange}
+              >
+                <option value="gallon">Gallon (Set)</option>
+                <option value="pail">Pail (Set)</option>
+                <option value="L">Liter</option>
+                <option value="mL">Milliliter</option>
+              </select>
+            </div>
+          </div>
+
+          {stockForm.transactionType === "in" && (
+            <div className="form-row">
+              <div className="form-group">
+                <label>Cost per Unit</label>
+                <input
+                  type="number"
+                  name="costPerUnit"
+                  placeholder="0"
+                  value={stockForm.costPerUnit}
+                  onChange={handleStockChange}
+                  required
+                  min="0"
+                  step="0.01"
+                />
+                <small className="hint">Enter the cost per unit for this new stock</small>
+              </div>
+            </div>
+          )}
+
+          <button type="submit" className="submit-btn">
+            {stockForm.transactionType === "in" ? "Add Stock" : "Remove Stock"}
+          </button>
+        </form>
+      </div>
+
       <div className="search-section">
         <h3>Product List</h3>
         <input
@@ -450,86 +835,57 @@ const Product = () => {
                             name="item"
                             value={editData.item}
                             onChange={handleEditChange}
+                            style={{ width: "100%" }}
                           />
                         </td>
 
                         <td>
-                          <div className="edit-input-group">
+                          {p.literValue} {p.literUnit}
+                        </td>
+
+                        <td>
+                          ₱{p.price}{" "}
+                          {p.priceUnit === "perPailSet" 
+                            ? "per Pail (Set)" 
+                            : p.priceUnit === "perGallonSet" 
+                            ? "per Gallon (Set)" 
+                            : p.priceUnit === "perL" 
+                            ? "per L" 
+                            : p.priceUnit === "permL" 
+                            ? "per mL" 
+                            : ""}
+                        </td>
+
+                        <td>
+                          ₱{Number(p.cost ?? 0).toFixed(2)}
+                          {((p.costPerUnit !== undefined && p.costPerUnit !== "") || (p.costPerLiter !== undefined && p.costPerLiter !== "") || (p.costPerL !== undefined)) && (
+                            <div style={{ fontSize: 12, marginTop: 4 }}>
+                              (₱{Number(p.costPerUnit ?? p.costPerLiter ?? p.costPerL ?? 0).toFixed(2)} per Unit)
+                            </div>
+                          )}
+                        </td>
+
+                        <td>
+                          Per Unit: ₱
+                          {Number(p.profitPerLiter ?? p.profitPerL ?? 0).toFixed(2)}
+                          <br />
+                          Total: ₱{Number(p.totalProfit ?? 0).toFixed(2)}
+                        </td>
+
+                        <td>
+                          <div style={{ marginBottom: "8px" }}>
+                            <label style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}>
+                              Low Stock Threshold:
+                            </label>
                             <input
                               type="number"
-                              name="literValue"
-                              value={editData.literValue}
+                              name="lowStockThreshold"
+                              value={editData.lowStockThreshold}
                               onChange={handleEditChange}
+                              min="0"
+                              step="0.1"
+                              style={{ width: "100px" }}
                             />
-                            <select
-                              name="literUnit"
-                              value={editData.literUnit}
-                              onChange={handleEditChange}
-                            >
-                              <option value="L">L</option>
-                              <option value="mL">mL</option>
-                            </select>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="edit-input-group">
-                            <input
-                              type="number"
-                              name="price"
-                              value={editData.price}
-                              onChange={handleEditChange}
-                            />
-                            <select
-                              name="priceUnit"
-                              value={editData.priceUnit}
-                              onChange={handleEditChange}
-                              style={{ fontSize: "11px" }}
-                            >
-                              <option value="perL">per L</option>
-                              <option value="permL">per mL</option>
-                            </select>
-                          </div>
-                        </td>
-
-                        <td>
-                          <input
-                            type="number"
-                            name="cost"
-                            value={editData.cost}
-                            onChange={handleEditChange}
-                          />
-                        </td>
-
-                        <td>
-                          <div className="profit-edit-section">
-                            <div className="profit-edit-row">
-                              <label>Per L:</label>
-                              <input
-                                type="number"
-                                name="profitPerLiter"
-                                value={editData.profitPerLiter}
-                                onChange={handleEditChange}
-                              />
-                            </div>
-                            <div className="profit-edit-row">
-                              <label>Total:</label>
-                              <input
-                                type="number"
-                                name="totalProfit"
-                                value={editData.totalProfit}
-                                onChange={handleEditChange}
-                              />
-                            </div>
-                            <div className="profit-edit-row">
-                              <label>Low Stock Threshold:</label>
-                              <input
-                                type="number"
-                                name="lowStockThreshold"
-                                value={editData.lowStockThreshold}
-                                onChange={handleEditChange}
-                              />
-                            </div>
                           </div>
                         </td>
 
@@ -568,20 +924,29 @@ const Product = () => {
                       </td>
 
                       <td>
-                        ₱{p.price} ({p.priceUnit === "perL" ? "per L" : "per mL"})
+                        ₱{p.price}{" "}
+                        {p.priceUnit === "perPailSet" 
+                          ? "per Pail (Set)" 
+                          : p.priceUnit === "perGallonSet" 
+                          ? "per Gallon (Set)" 
+                          : p.priceUnit === "perL" 
+                          ? "per L" 
+                          : p.priceUnit === "permL" 
+                          ? "per mL" 
+                          : ""}
                       </td>
 
                       <td>
                         ₱{Number(p.cost ?? 0).toFixed(2)}
-                        {((p.costPerLiter !== undefined && p.costPerLiter !== "") || (p.costPerL !== undefined)) && (
+                        {((p.costPerUnit !== undefined && p.costPerUnit !== "") || (p.costPerLiter !== undefined && p.costPerLiter !== "") || (p.costPerL !== undefined)) && (
                           <div style={{ fontSize: 12, marginTop: 4 }}>
-                            (₱{Number(p.costPerLiter ?? p.costPerL ?? 0).toFixed(2)} per L)
+                            (₱{Number(p.costPerUnit ?? p.costPerLiter ?? p.costPerL ?? 0).toFixed(2)} per Unit)
                           </div>
                         )}
                       </td>
 
                       <td>
-                        Per L: ₱
+                        Per Unit: ₱
                         {Number(p.profitPerLiter ?? p.profitPerL ?? 0).toFixed(
                           2
                         )}
@@ -595,7 +960,7 @@ const Product = () => {
                         ) : p.lowStockThreshold ? (
                           <>
                             <div>Current: {quantity.toFixed(2)} {p.literUnit}</div>
-                            <div>Alert at: {p.lowStockThreshold}L</div>
+                            <div>Alert at: {p.lowStockThreshold}qty</div>
                             {isLowStock && <div className="low-stock-badge">LOW STOCK</div>}
                           </>
                         ) : (

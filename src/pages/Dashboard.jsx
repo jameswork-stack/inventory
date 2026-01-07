@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { db } from "../firebase";
 import { ref, onValue, off } from "firebase/database";
 import "../styles/dashboard.css";
@@ -32,8 +32,10 @@ const Dashboard = () => {
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [totalSalesAllTime, setTotalSalesAllTime] = useState(0);
   const [totalDiscount, setTotalDiscount] = useState(0);
+  const [totalTax, setTotalTax] = useState(0);
 
   const [salesData, setSalesData] = useState([]);
+  const [expensesData, setExpensesData] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -158,6 +160,7 @@ const Dashboard = () => {
       if (!data) {
         setSalesData([]);
         setTotalDiscount(0);
+        setTotalTax(0);
         return;
       }
 
@@ -165,8 +168,13 @@ const Dashboard = () => {
       let filteredSales = sales;
 
       if (startDate && endDate) {
+        // Set start date to beginning of day (00:00:00)
         const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        
+        // Set end date to end of day (23:59:59.999)
         const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
 
         filteredSales = sales.filter((sale) => {
           const saleDate = new Date(sale.date);
@@ -180,11 +188,18 @@ const Dashboard = () => {
         const date = new Date(s.date).toLocaleDateString();
 
         if (!grouped[date]) {
-          grouped[date] = { totalAmount: 0, totalProfit: 0 };
+          grouped[date] = { 
+            totalAmount: 0, 
+            totalProfit: 0,
+            totalTax: 0,
+            totalDiscount: 0
+          };
         }
 
         grouped[date].totalAmount += Number(s.totalAmount);
         grouped[date].totalProfit += Number(s.totalProfit);
+        grouped[date].totalTax += Number(s.totalTax || 0);
+        grouped[date].totalDiscount += Number(s.discount || 0);
       });
 
       const formatted = Object.entries(grouped).map(
@@ -192,6 +207,8 @@ const Dashboard = () => {
           date,
           totalAmount: values.totalAmount,
           totalProfit: values.totalProfit,
+          totalTax: values.totalTax,
+          totalDiscount: values.totalDiscount,
         })
       );
       // compute total discount for the currently selected range
@@ -200,6 +217,13 @@ const Dashboard = () => {
         0
       );
       setTotalDiscount(totalDisc);
+
+      // compute total VAT for the currently selected range
+      const totalTaxAmount = filteredSales.reduce(
+        (s, sale) => s + (parseFloat(sale.totalTax) || 0),
+        0
+      );
+      setTotalTax(totalTaxAmount);
 
       setSalesData(formatted);
     });
@@ -239,8 +263,14 @@ const Dashboard = () => {
 
       let filtered = list;
       if (startDate && endDate) {
+        // Set start date to beginning of day (00:00:00)
         const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        
+        // Set end date to end of day (23:59:59.999)
         const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
+        
         filtered = list.filter((it) => {
           const d = new Date(it.date);
           return d >= s && d <= e;
@@ -249,6 +279,24 @@ const Dashboard = () => {
 
       const sum = filtered.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
       setTotalExpenses(sum);
+
+      // Group expenses by date for chart
+      const expensesGrouped = {};
+      filtered.forEach((exp) => {
+        const date = new Date(exp.date).toLocaleDateString();
+        if (!expensesGrouped[date]) {
+          expensesGrouped[date] = 0;
+        }
+        expensesGrouped[date] += parseFloat(exp.amount) || 0;
+      });
+
+      const expensesFormatted = Object.entries(expensesGrouped).map(
+        ([date, amount]) => ({
+          date,
+          amount,
+        })
+      );
+      setExpensesData(expensesFormatted);
     };
 
     onValue(expensesRef, handleSnapshot);
@@ -279,6 +327,42 @@ const Dashboard = () => {
 
   const totalSales = salesData.reduce((sum, d) => sum + d.totalAmount, 0);
   const totalProfit = salesData.reduce((sum, d) => sum + d.totalProfit, 0);
+
+  // Combine sales and expenses data for chart with net income
+  const chartData = useMemo(() => {
+    const combined = {};
+    
+    // Add sales data
+    salesData.forEach((sale) => {
+      combined[sale.date] = {
+        ...sale,
+        expenses: 0,
+        netIncome: sale.totalAmount,
+      };
+    });
+    
+    // Add expenses data and calculate net income
+    expensesData.forEach((expense) => {
+      if (combined[expense.date]) {
+        combined[expense.date].expenses = expense.amount;
+        combined[expense.date].netIncome = combined[expense.date].totalAmount - expense.amount;
+      } else {
+        combined[expense.date] = {
+          date: expense.date,
+          totalAmount: 0,
+          totalProfit: 0,
+          totalTax: 0,
+          totalDiscount: 0,
+          expenses: expense.amount,
+          netIncome: -expense.amount,
+        };
+      }
+    });
+    
+    return Object.values(combined).sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    );
+  }, [salesData, expensesData]);
 
 
   return (
@@ -312,50 +396,72 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Total Sales Card */}
-      <div className="total-sales-card">
-        <h3>
-          {chartType === "sales"
-            ? "Total Sales in Selected Range"
-            : "Total Profit in Selected Range"}
-        </h3>
+      {/* Total Cards - Horizontal Layout */}
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+        gap: "20px", 
+        marginBottom: "30px" 
+      }}>
+        {/* Total Sales Card */}
+        <div className="total-sales-card">
+          <h3>
+            {startDate && endDate
+              ? "Total Sales"
+              : "Total Sales (All Time)"}
+          </h3>
+          <p className="amount">₱{totalSales.toFixed(2)}</p>
+        </div>
 
-        <p className="amount">
-          ₱
-          {chartType === "sales"
-            ? totalSales.toFixed(2)
-            : totalProfit.toFixed(2)}
-        </p>
-      </div>
+        {/* Total Profit Card */}
+        <div className="total-sales-card">
+          <h3>
+            {startDate && endDate
+              ? "Total Profit"
+              : "Total Profit (All Time)"}
+          </h3>
+          <p className="amount">₱{totalProfit.toFixed(2)}</p>
+        </div>
 
-      {/* Total Expenses Card */}
+        {/* Total Expenses Card */}
+        <div className="total-sales-card">
+          <h3>
+            {startDate && endDate
+              ? "Total Expenses"
+              : "Total Expenses (All Time)"}
+          </h3>
+          <p className="amount">₱{totalExpenses.toFixed(2)}</p>
+        </div>
+
+      {/* Total VAT Card */}
       <div className="total-sales-card">
         <h3>
           {startDate && endDate
-            ? "Total Expenses in Selected Range"
-            : "Total Expenses (All Time)"}
+            ? "Total VAT"
+            : "Total VAT (All Time)"}
         </h3>
-        <p className="amount">₱{totalExpenses.toFixed(2)}</p>
+        <p className="amount">₱{totalTax.toFixed(2)}</p>
       </div>
 
-      {/* Total Discount Card */}
-      <div className="total-sales-card">
-        <h3>
-          {startDate && endDate
-            ? "Total Discount in Selected Range"
-            : "Total Discount (All Time)"}
-        </h3>
-        <p className="amount">₱{totalDiscount.toFixed(2)}</p>
-      </div>
+        {/* Total Discount Card */}
+        <div className="total-sales-card">
+          <h3>
+            {startDate && endDate
+              ? "Total Discount"
+              : "Total Discount (All Time)"}
+          </h3>
+          <p className="amount">₱{totalDiscount.toFixed(2)}</p>
+        </div>
 
-      {/* Total Net Income Card (uses selected range sales vs expenses) */}
-      <div className="total-sales-card">
-        <h3>
-          {startDate && endDate
-            ? "Net Income in Selected Range"
-            : "Total Net Income (All Time)"}
-        </h3>
-        <p className="amount">₱{(totalSales - totalExpenses).toFixed(2)}</p>
+        {/* Total Net Income Card */}
+        <div className="total-sales-card">
+          <h3>
+            {startDate && endDate
+              ? "Net Income"
+              : "Net Income (All Time)"}
+          </h3>
+          <p className="amount">₱{(totalSales - totalExpenses).toFixed(2)}</p>
+        </div>
       </div>
 
       {/* ⭐ Chart Type Switch */}
@@ -367,16 +473,30 @@ const Dashboard = () => {
         >
           <option value="sales">Daily Sales</option>
           <option value="profit">Daily Profit</option>
+          <option value="netIncome">Daily Net Income</option>
+          <option value="tax">Daily VAT</option>
+          <option value="discount">Daily Discount</option>
+          <option value="expenses">Daily Expenses</option>
         </select>
       </div>
 
-      {/* Sales / Profit Chart */}
+      {/* Chart */}
       <div className="chart-section">
         <h3>
-          {chartType === "sales" ? "Daily Sales Chart" : "Daily Profit Chart"}
+          {chartType === "sales" 
+            ? "Daily Sales Chart" 
+            : chartType === "profit"
+            ? "Daily Profit Chart"
+            : chartType === "netIncome"
+            ? "Daily Net Income Chart"
+            : chartType === "tax"
+            ? "Daily VAT Chart"
+            : chartType === "discount"
+            ? "Daily Discount Chart"
+            : "Daily Expenses Chart"}
         </h3>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={salesData}>
+          <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey="date" stroke="#718096" />
             <YAxis stroke="#718096" />
@@ -391,7 +511,19 @@ const Dashboard = () => {
 
             <Line
               type="monotone"
-              dataKey={chartType === "sales" ? "totalAmount" : "totalProfit"}
+              dataKey={
+                chartType === "sales" 
+                  ? "totalAmount" 
+                  : chartType === "profit"
+                  ? "totalProfit"
+                  : chartType === "netIncome"
+                  ? "netIncome"
+                  : chartType === "tax"
+                  ? "totalTax"
+                  : chartType === "discount"
+                  ? "totalDiscount"
+                  : "expenses"
+              }
               stroke="#667eea"
               strokeWidth={3}
               dot={{ fill: "#667eea", r: 4 }}

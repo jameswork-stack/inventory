@@ -50,12 +50,16 @@ const Receipt = () => {
               (item) => `
               <p>
                 <strong>${item.item}</strong><br/>
-                Amount: ${
-                  item.type === "paint"
+                Quantity: ${
+                  item.displayAmount 
+                    ? item.displayAmount
+                    : item.type === "paint"
                     ? item.purchaseAmount + " Liters"
                     : item.purchaseAmount + " pcs"
                 }<br/>
-                Price: ₱${item.totalPrice}<br/>
+                Subtotal: ₱${item.totalPrice || 0}<br/>
+                VAT (12%): ₱${(item.tax || 0).toFixed(2)}<br/>
+                Total: ₱${(item.totalPriceWithTax || item.totalPrice || 0).toFixed(2)}<br/>
               </p>
               <hr/>
             `
@@ -63,8 +67,10 @@ const Receipt = () => {
             .join("")}
 
           <h3>Total Summary</h3>
-          <p><strong>Total Amount:</strong> ₱${sale.totalAmount}</p>
+          <p><strong>Subtotal:</strong> ₱${(sale.subtotal || 0).toFixed(2)}</p>
+          <p><strong>VAT (12%):</strong> ₱${(sale.totalTax || 0).toFixed(2)}</p>
           <p><strong>Discount:</strong> ₱${sale.discount || 0}</p>
+          <p><strong>Total Amount:</strong> ₱${sale.totalAmount}</p>
 
           <script>
             window.print();
@@ -106,7 +112,8 @@ const Receipt = () => {
               <tr>
                 <th>Customer Name</th>
                 <th>Items</th>
-                <th>Amount Bought</th>
+                <th>Quantity Bought</th>
+                <th>VAT (12%)</th>
                 <th>Total Amount</th>
                 <th>Discount</th>
                 <th>Total Profit</th>
@@ -128,13 +135,33 @@ const Receipt = () => {
                     ))}
                   </td>
 
-                  {/* Amount Bought Column */}
+                  {/* Quantity Bought Column */}
                   <td className="amount-column">
+                    {sale.items?.map((item, index) => {
+                      // Use displayAmount if available (contains unit info), otherwise format based on type
+                      if (item.displayAmount) {
+                        return (
+                          <div key={index} className="amount-entry">
+                            {item.displayAmount}
+                          </div>
+                        );
+                      }
+                      // Fallback: format based on type
+                      return (
+                        <div key={index} className="amount-entry">
+                          {item.type === "paint"
+                            ? `${item.purchaseAmount.toFixed(2)} L`
+                            : `${item.purchaseAmount} pcs`}
+                        </div>
+                      );
+                    })}
+                  </td>
+
+                  {/* VAT Column */}
+                  <td className="money-value">
                     {sale.items?.map((item, index) => (
                       <div key={index} className="amount-entry">
-                        {item.type === "paint"
-                          ? `${item.purchaseAmount.toFixed(2)} L`
-                          : `${item.purchaseAmount} pcs`}
+                        ₱{(item.tax || 0).toFixed(2)}
                       </div>
                     ))}
                   </td>
