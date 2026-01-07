@@ -57,7 +57,7 @@ const Receipt = () => {
                     ? item.purchaseAmount + " Liters"
                     : item.purchaseAmount + " pcs"
                 }<br/>
-                Subtotal: ₱${item.totalPrice || 0}<br/>
+                Subtotal: ₱${(item.totalPrice || 0).toFixed(2)}<br/>
                 VAT (12%): ₱${(item.tax || 0).toFixed(2)}<br/>
                 Total: ₱${(item.totalPriceWithTax || item.totalPrice || 0).toFixed(2)}<br/>
               </p>
@@ -69,8 +69,8 @@ const Receipt = () => {
           <h3>Total Summary</h3>
           <p><strong>Subtotal:</strong> ₱${(sale.subtotal || 0).toFixed(2)}</p>
           <p><strong>VAT (12%):</strong> ₱${(sale.totalTax || 0).toFixed(2)}</p>
-          <p><strong>Discount:</strong> ₱${sale.discount || 0}</p>
-          <p><strong>Total Amount:</strong> ₱${sale.totalAmount}</p>
+          <p><strong>Discount:</strong> ₱${(sale.discount || 0).toFixed(2)}</p>
+          <p><strong>Total Amount:</strong> ₱${(sale.totalAmount || 0).toFixed(2)}</p>
 
           <script>
             window.print();
