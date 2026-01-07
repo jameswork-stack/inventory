@@ -551,7 +551,7 @@ const Dashboard = () => {
               <h4>⚠ Low Stock Alert</h4>
               {lowPaintStock.map((p, i) => (
                 <div key={i} className="low-stock-item">
-                  {p.item} — {p.liters}L remaining (low stock, threshold: {p.threshold}L)
+                  {p.item} — {p.liters}Qty remaining (low stock, threshold: {p.threshold}Qty)
                 </div>
               ))}
             </div>
