@@ -6,6 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
+
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/Pos";
@@ -17,97 +18,104 @@ import Product2 from "./pages/Product2";
 import Login from "./pages/Login";
 import { isAuthenticated } from "./auth";
 
+function RequireAuth({ children, location }) {
+  if (isAuthenticated()) {
+    return children;
+  }
 
-function App() {
-  // In App.jsx
-const [authChecked, setAuthChecked] = useState(false);
+  return <Navigate to="/login" state={{ from: location }} replace />;
+}
 
-// Use it in the component or in effects
-useEffect(() => {
-  // This effect will run when authChecked changes
-}, [authChecked]);
+function AppContent() {
+  const location = useLocation();
 
-  const RequireAuth = ({ children }) => {
-    const location = useLocation();
-    if (isAuthenticated()) {
-      return children;
-    }
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  };
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Add effect to listen for auth changes
   useEffect(() => {
     const handleAuthChange = () => {
-      setAuthChecked(prev => !prev); // Toggle to force re-render
+      setAuthChecked((prev) => !prev);
     };
 
-    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
     return () => {
-      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
     };
   }, []);
 
   return (
-    <Router>
-      <div style={{ display: "flex" }}>
-        <Sidebar />
-        <div style={{ marginLeft: "240px", padding: "0", width: "100%" }}>
-          <Header />
-          <div style={{ padding: "20px" }}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route
-                path="/"
-                element={
-                  <RequireAuth>
-                    <Dashboard />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/product"
-                element={
-                  <RequireAuth>
-                    <Product />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/product2"
-                element={
-                  <RequireAuth>
-                    <Product2 />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/pos"
-                element={
-                  <RequireAuth>
-                    <POS />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/receipt"
-                element={
-                  <RequireAuth>
-                    <Receipt />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/expense"
-                element={
-                  <RequireAuth>
-                    <Expense />
-                  </RequireAuth>
-                }
-              />
-            </Routes>
-          </div>
+    <div>
+      {location.pathname !== "/login" && <Sidebar />}
+
+      <div>
+        {location.pathname !== "/login" && <Header />}
+
+        <div style={{ padding: "20px" }}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={
+                <RequireAuth location={location}>
+                  <Dashboard />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/product"
+              element={
+                <RequireAuth location={location}>
+                  <Product />
+                </RequireAuth>
+              }
+            />
+
+            <Route
+              path="/product2"
+              element={
+                <RequireAuth location={location}>
+                  <Product2 />
+                </RequireAuth>
+              }
+            />
+
+            <Route
+              path="/pos"
+              element={
+                <RequireAuth location={location}>
+                  <POS />
+                </RequireAuth>
+              }
+            />
+
+            <Route
+              path="/receipt"
+              element={
+                <RequireAuth location={location}>
+                  <Receipt />
+                </RequireAuth>
+              }
+            />
+
+            <Route
+              path="/expense"
+              element={
+                <RequireAuth location={location}>
+                  <Expense />
+                </RequireAuth>
+              }
+            />
+          </Routes>
         </div>
       </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }

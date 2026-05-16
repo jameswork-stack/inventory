@@ -9,17 +9,27 @@ const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || "/";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (login(username.trim(), password)) {
-      navigate(from, { replace: true });
-    } else {
-      setError("Invalid username or password");
+    setError("");
+    try {
+      setLoading(true);
+      const success = await login(username.trim(), password);
+      if (success) {
+        navigate(from, { replace: true });
+      } else {
+        setError("Invalid email or password");
+      }
+    } catch (err) {
+      setError(err?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -42,7 +52,15 @@ const Login = () => {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="password"
         />
-        <button type="submit">Login</button>
+        <button type="submit" disabled={loading}>
+          {loading ? (
+            <>
+              <span className="btn-spinner" /> Logging in...
+            </>
+          ) : (
+            "Login"
+          )}
+        </button>
       </form>
     </div>
   );

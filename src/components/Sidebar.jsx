@@ -1,15 +1,17 @@
 import { NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import "../styles/sidebar.css";
-import { getUser } from "../auth";  // Removed isAuthenticated
+import { getUser, isAdmin } from "../auth";
 
 const Sidebar = () => {
   const [user, setUser] = useState(() => getUser());
+  const [admin, setAdmin] = useState(() => isAdmin());
 
   // Add effect to listen for authentication changes
   useEffect(() => {
     const handleAuthChange = () => {
       setUser(getUser());
+      setAdmin(isAdmin());
     };
 
     // Listen for storage events to detect login/logout
@@ -23,7 +25,7 @@ const Sidebar = () => {
     };
   }, []);
 
-  const showDashboard = user && user.username === "admin@inventory.com";
+  const showDashboard = admin;
 
   return (
     <div className="sidebar">

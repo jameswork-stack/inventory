@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import "../styles/expense.css";
 import { db } from "../firebase";
 import { ref, onValue, push, set, remove, off } from "firebase/database";
-import { getUser } from "../auth";
+import { getUser, isAdmin } from "../auth";
 
-const keyFromUsername = (u) => {
-  if (!u) return "anonymous";
-  return u.replace(/\./g, ",").replace(/@/g, "_");
+const keyFromEmail = (email) => {
+  if (!email) return "anonymous";
+  return email.replace(/\./g, ",").replace(/@/g, "_");
 };
 
 const Expense = () => {
@@ -15,10 +15,10 @@ const Expense = () => {
   const [expenses, setExpenses] = useState([]);
 
   const user = getUser();
-  const userKey = user ? keyFromUsername(user.username) : "anonymous";
+  const userKey = user ? keyFromEmail(user.email) : "anonymous";
 
   useEffect(() => {
-    const isAdmin = user && user.username === "admin@inventory.com";
+    const admin = isAdmin();
     const expensesRef = ref(db, `expenses`);
 
     const handleSnapshot = (snap) => {
@@ -34,7 +34,7 @@ const Expense = () => {
       });
 
       // If not admin, filter to only current user's expenses
-      const visible = isAdmin ? list : list.filter((i) => i.ownerKey === userKey);
+      const visible = admin ? list : list.filter((i) => i.ownerKey === userKey);
 
       visible.sort((a, b) => new Date(b.date) - new Date(a.date));
       setExpenses(visible);
@@ -57,7 +57,7 @@ const Expense = () => {
       amount: num,
       details: details.trim(),
       date: new Date().toISOString(),
-      createdBy: user ? user.username : null,
+      createdBy: user ? user.email : null,
     };
 
     try {
@@ -74,8 +74,8 @@ const Expense = () => {
 
   const removeExpense = async (id, ownerKey, createdBy) => {
     const current = getUser();
-    const isAdmin = current && current.username === "admin@inventory.com";
-    const canDelete = isAdmin || (current && current.username === createdBy);
+    const admin = isAdmin();
+    const canDelete = admin || (current && current.email === createdBy);
     if (!canDelete) {
       alert("You don't have permission to delete this expense.");
       return;
@@ -132,8 +132,8 @@ const Expense = () => {
 
 const ExpenseDeleteButton = ({ exp, onDelete }) => {
   const current = getUser();
-  const isAdmin = current && current.username === "admin@inventory.com";
-  const canDelete = isAdmin || (current && current.username === exp.createdBy);
+  const admin = isAdmin();
+  const canDelete = admin || (current && current.email === exp.createdBy);
 
   if (!canDelete) return null;
 

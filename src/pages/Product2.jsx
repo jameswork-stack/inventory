@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
 import { ref, onValue, update, remove, push } from "firebase/database";
-import { getUser } from "../auth";
+import { getUser, getUserRole } from "../auth";
 import "../styles/product2.css";
 
 // Add styles for stock status
@@ -49,7 +49,8 @@ const Product2 = () => {
   // Editing state
   const [editingId, setEditingId] = useState(null);
   const currentUser = getUser();
-  const isStaff = currentUser && currentUser.username === "staff@inventory.com";
+  const userRole = getUserRole();
+  const isStaff = userRole === "user";
   const [editData, setEditData] = useState({});
 
   // Stock management state

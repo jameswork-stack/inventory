@@ -1,10 +1,12 @@
 /* POS Container */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 .pos-container {
   max-width: 1400px;
-  margin: 0 auto;
+  margin-left: 250px;
   padding: 24px;
   background: #f5f7fa;
   min-height: calc(100vh - 80px);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Header */

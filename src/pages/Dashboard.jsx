@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { db } from "../firebase";
 import { ref, onValue, off } from "firebase/database";
 import "../styles/dashboard.css";
-import { getUser } from "../auth";
+import { getUser, isAdmin } from "../auth";
 
 // 📌 Recharts for Line Chart
 import {
@@ -234,22 +234,22 @@ const Dashboard = () => {
   // ---------------------------
   useEffect(() => {
     const user = getUser();
-    const keyFromUsername = (u) => {
-      if (!u) return "anonymous";
-      return u.replace(/\./g, ",").replace(/@/g, "_");
+    const keyFromEmail = (email) => {
+      if (!email) return "anonymous";
+      return email.replace(/\./g, ",").replace(/@/g, "_");
     };
 
-    const userKey = user ? keyFromUsername(user.username) : "anonymous";
-    const isAdmin = user && user.username === "admin@inventory.com";
+    const userKey = user ? keyFromEmail(user.email) : "anonymous";
+    const admin = isAdmin();
 
-    const expensesRef = isAdmin ? ref(db, `expenses`) : ref(db, `expenses/${userKey}`);
+    const expensesRef = admin ? ref(db, `expenses`) : ref(db, `expenses/${userKey}`);
 
     const handleSnapshot = (snap) => {
       const val = snap.val() || {};
 
       // Build a flat list of expense objects. Admin sees all users' expenses.
       let list = [];
-      if (isAdmin) {
+      if (admin) {
         // val is { userKey: { expenseId: expenseObj, ... }, ... }
         Object.values(val).forEach((userObj) => {
           if (userObj) {

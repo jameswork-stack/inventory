@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
 import { ref, onValue, remove } from "firebase/database";
-import { getUser } from "../auth";
+import { getUser, getUserRole } from "../auth";
 import "../styles/receipt.css";
 
 const Receipt = () => {
   const currentUser = getUser();
-  const isStaff = currentUser && currentUser.username === "staff@inventory.com";
+  const userRole = getUserRole();
+  const isStaff = userRole === "user";
   const [sales, setSales] = useState([]);
 
   useEffect(() => {
